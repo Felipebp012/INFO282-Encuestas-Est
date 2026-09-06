@@ -1,0 +1,24 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model Encuesta {
+  id        String     @id @default(cuid())
+  titulo    String
+  creadoEn  DateTime   @default(now())
+  preguntas Pregunta[]
+}
+
+model Pregunta {
+  id         String   @id @default(cuid())
+  texto      String
+  tipo       String
+  orden      Int
+  encuesta   Encuesta @relation(fields: [encuestaId], references: [id], onDelete: Cascade)
+  encuestaId String
+}
