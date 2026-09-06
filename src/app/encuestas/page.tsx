@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { obtenerEncuestas } from "@/lib/actions";
+import { eliminarEncuesta, obtenerEncuestas } from "@/lib/actions";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 
@@ -24,19 +24,33 @@ export default async function EncuestasPage() {
       ) : (
         <div className="space-y-4">
           {encuestas.map((encuesta) => (
-            <Link key={encuesta.id} href={`/encuestas/${encuesta.id}`}>
-              <Card className="transition-shadow hover:shadow-md">
+            <Card key={encuesta.id} className="transition-shadow hover:shadow-md">
+              <Link href={`/encuestas/${encuesta.id}`}>
                 <CardHeader>
                   <CardTitle>{encuesta.titulo}</CardTitle>
                 </CardHeader>
-                <CardContent className="flex items-center justify-between text-sm text-slate-500">
-                  <span>{encuesta.preguntas.length} preguntas</span>
+              </Link>
+              <CardContent className="flex items-center justify-between text-sm text-slate-500">
+                <span>{encuesta.preguntas.length} preguntas</span>
+                <div className="flex items-center gap-3">
+                  <Link
+                    href={`/encuestas/${encuesta.id}/editar`}
+                    className="text-slate-700 hover:underline"
+                  >
+                    Editar
+                  </Link>
+                  <form action={eliminarEncuesta}>
+                    <input type="hidden" name="id" value={encuesta.id} />
+                    <Button type="submit" variant="ghost" className="px-0 text-red-600">
+                      Eliminar
+                    </Button>
+                  </form>
                   <span>
                     {new Date(encuesta.creadoEn).toLocaleDateString("es-CL")}
                   </span>
-                </CardContent>
-              </Card>
-            </Link>
+                </div>
+              </CardContent>
+            </Card>
           ))}
         </div>
       )}

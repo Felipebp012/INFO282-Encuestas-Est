@@ -4,7 +4,7 @@ import { useState, type FormEvent } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { crearEncuesta } from "@/lib/actions";
+import { actualizarEncuesta, crearEncuesta } from "@/lib/actions";
 import { Plus, Trash2 } from "lucide-react";
 
 type TipoPregunta = "ESCALA" | "SELECCION" | "TEXTO";
@@ -14,17 +14,27 @@ interface PreguntaBorrador {
   tipo: TipoPregunta;
 }
 
+interface SurveyBuilderFormProps {
+  encuestaId?: string;
+  initialTitulo?: string;
+  initialPreguntas?: PreguntaBorrador[];
+}
+
 const TIPOS: { value: TipoPregunta; label: string }[] = [
   { value: "ESCALA", label: "Escala (1-5)" },
   { value: "SELECCION", label: "Selección única" },
   { value: "TEXTO", label: "Texto abierto" },
 ];
 
-export function SurveyBuilderForm() {
-  const [titulo, setTitulo] = useState("");
-  const [preguntas, setPreguntas] = useState<PreguntaBorrador[]>([
-    { texto: "", tipo: "ESCALA" },
-  ]);
+export function SurveyBuilderForm({
+  encuestaId,
+  initialTitulo = "",
+  initialPreguntas,
+}: SurveyBuilderFormProps) {
+  const [titulo, setTitulo] = useState(initialTitulo);
+  const [preguntas, setPreguntas] = useState<PreguntaBorrador[]>(
+    initialPreguntas?.length ? initialPreguntas : [{ texto: "", tipo: "ESCALA" }]
+  );
   const [error, setError] = useState<string | null>(null);
   const [enviando, setEnviando] = useState(false);
 
@@ -60,12 +70,13 @@ export function SurveyBuilderForm() {
     }
 
     const formData = new FormData();
+    if (encuestaId) formData.set("id", encuestaId);
     formData.set("titulo", titulo);
     formData.set("preguntas", JSON.stringify(preguntas));
 
     setEnviando(true);
     try {
-      await crearEncuesta(formData);
+      await (encuestaId ? actualizarEncuesta(formData) : crearEncuesta(formData));
     } catch (err) {
       setError(
         err instanceof Error ? err.message : "No se pudo guardar la encuesta."
@@ -140,7 +151,11 @@ export function SurveyBuilderForm() {
       {error && <p className="text-sm text-red-600">{error}</p>}
 
       <Button type="submit" disabled={enviando}>
-        {enviando ? "Guardando..." : "Guardar encuesta"}
+        {enviando
+          ? "Guardando..."
+          : encuestaId
+            ? "Guardar cambios"
+            : "Guardar encuesta"}
       </Button>
     </form>
   );

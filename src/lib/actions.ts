@@ -42,6 +42,45 @@ export async function crearEncuesta(formData: FormData) {
   redirect(`/encuestas/${encuesta.id}`);
 }
 
+export async function actualizarEncuesta(formData: FormData) {
+  const id = formData.get("id") as string;
+  const titulo = formData.get("titulo") as string;
+  const preguntasRaw = formData.get("preguntas") as string;
+  const preguntas = JSON.parse(preguntasRaw || "[]");
+
+  const parsed = encuestaSchema.safeParse({ titulo, preguntas });
+  if (!parsed.success) {
+    throw new Error(parsed.error.issues.map((i) => i.message).join(", "));
+  }
+
+  await prisma.encuesta.update({
+    where: { id },
+    data: {
+      titulo: parsed.data.titulo,
+      preguntas: {
+        deleteMany: {},
+        create: parsed.data.preguntas.map((p, index) => ({
+          texto: p.texto,
+          tipo: p.tipo,
+          orden: index,
+        })),
+      },
+    },
+  });
+
+  revalidatePath("/encuestas");
+  revalidatePath(`/encuestas/${id}`);
+  redirect(`/encuestas/${id}`);
+}
+
+export async function eliminarEncuesta(formData: FormData) {
+  const id = formData.get("id") as string;
+
+  await prisma.encuesta.delete({ where: { id } });
+  revalidatePath("/encuestas");
+  redirect("/encuestas");
+}
+
 export async function obtenerEncuestas() {
   return prisma.encuesta.findMany({
     orderBy: { creadoEn: "desc" },
