@@ -19,18 +19,23 @@
    npm install
    ```
 
-2. Crear la base de datos local (SQLite) y generar el cliente de Prisma:
+2. Configurar la base de datos local. Crea un archivo `.env` en la raíz:
    ```
-   npx prisma migrate dev --name init
+   DATABASE_URL="file:./dev.db"
+   ```
+
+3. Crear la base de datos local (SQLite) y generar el cliente de Prisma:
+   ```
+   npx prisma migrate deploy
    ```
    Esto crea el archivo `prisma/dev.db` con las tablas `Encuesta`, `Pregunta` y `Respuesta`.
 
-3. Levantar el servidor de desarrollo:
+4. Levantar el servidor de desarrollo:
    ```
    npm run dev
    ```
 
-4. Abrir http://localhost:3000 — te va a redirigir a `/encuestas`.
+5. Abrir http://localhost:3000 — te va a redirigir a `/encuestas`.
 
 ## Ver la base de datos directamente (opcional)
 ```
