@@ -21,4 +21,13 @@ model Pregunta {
   orden      Int
   encuesta   Encuesta @relation(fields: [encuestaId], references: [id], onDelete: Cascade)
   encuestaId String
+  respuestas Respuesta[]
+}
+
+model Respuesta {
+  id         String   @id @default(cuid())
+  texto      String
+  orden      Int
+  pregunta   Pregunta @relation(fields: [preguntaId], references: [id], onDelete: Cascade)
+  preguntaId String
 }

@@ -20,9 +20,10 @@ export default async function EditarEncuestaPage({
       <SurveyBuilderForm
         encuestaId={encuesta.id}
         initialTitulo={encuesta.titulo}
-        initialPreguntas={encuesta.preguntas.map(({ texto, tipo }) => ({
+        initialPreguntas={encuesta.preguntas.map(({ texto, tipo, respuestas }) => ({
           texto,
           tipo: tipo as "ESCALA" | "SELECCION" | "TEXTO",
+          respuestas: respuestas.map(({ texto }) => texto),
         }))}
       />
     </div>

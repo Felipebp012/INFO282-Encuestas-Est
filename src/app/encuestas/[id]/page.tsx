@@ -35,8 +35,18 @@ export default async function DetalleEncuestaPage({
                 {index + 1}. {pregunta.texto}
               </CardTitle>
             </CardHeader>
-            <CardContent className="text-sm text-slate-500">
-              {ETIQUETAS_TIPO[pregunta.tipo]}
+            <CardContent className="space-y-2 text-sm text-slate-500">
+              <p>{ETIQUETAS_TIPO[pregunta.tipo]}</p>
+              {pregunta.tipo === "SELECCION" && pregunta.respuestas.length > 0 && (
+                <ul className="space-y-1 text-slate-700">
+                  {pregunta.respuestas.map((respuesta) => (
+                    <li key={respuesta.id} className="flex items-center gap-2">
+                      <span className="h-4 w-4 rounded-full border border-slate-400" />
+                      {respuesta.texto}
+                    </li>
+                  ))}
+                </ul>
+              )}
             </CardContent>
           </Card>
         ))}

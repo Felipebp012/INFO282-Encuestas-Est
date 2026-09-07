@@ -8,6 +8,9 @@ import { z } from "zod";
 const preguntaSchema = z.object({
   texto: z.string().min(1, "La pregunta no puede estar vacía"),
   tipo: z.enum(["ESCALA", "SELECCION", "TEXTO"]),
+  respuestas: z
+    .array(z.string().min(1, "Las respuestas no pueden estar vacías"))
+    .min(1, "Agrega al menos una respuesta"),
 });
 
 const encuestaSchema = z.object({
@@ -33,6 +36,15 @@ export async function crearEncuesta(formData: FormData) {
           texto: p.texto,
           tipo: p.tipo,
           orden: index,
+          respuestas:
+            p.tipo === "SELECCION"
+              ? {
+                  create: p.respuestas.map((texto, respuestaIndex) => ({
+                    texto,
+                    orden: respuestaIndex,
+                  })),
+                }
+              : undefined,
         })),
       },
     },
@@ -63,6 +75,15 @@ export async function actualizarEncuesta(formData: FormData) {
           texto: p.texto,
           tipo: p.tipo,
           orden: index,
+          respuestas:
+            p.tipo === "SELECCION"
+              ? {
+                  create: p.respuestas.map((texto, respuestaIndex) => ({
+                    texto,
+                    orden: respuestaIndex,
+                  })),
+                }
+              : undefined,
         })),
       },
     },
@@ -84,13 +105,18 @@ export async function eliminarEncuesta(formData: FormData) {
 export async function obtenerEncuestas() {
   return prisma.encuesta.findMany({
     orderBy: { creadoEn: "desc" },
-    include: { preguntas: true },
+    include: { preguntas: { include: { respuestas: true } } },
   });
 }
 
 export async function obtenerEncuesta(id: string) {
   return prisma.encuesta.findUnique({
     where: { id },
-    include: { preguntas: { orderBy: { orden: "asc" } } },
+    include: {
+      preguntas: {
+        orderBy: { orden: "asc" },
+        include: { respuestas: { orderBy: { orden: "asc" } } },
+      },
+    },
   });
 }

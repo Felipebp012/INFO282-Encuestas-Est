@@ -12,6 +12,7 @@ type TipoPregunta = "ESCALA" | "SELECCION" | "TEXTO";
 interface PreguntaBorrador {
   texto: string;
   tipo: TipoPregunta;
+  respuestas: string[];
 }
 
 interface SurveyBuilderFormProps {
@@ -26,6 +27,14 @@ const TIPOS: { value: TipoPregunta; label: string }[] = [
   { value: "TEXTO", label: "Texto abierto" },
 ];
 
+function nuevaPregunta(tipo: TipoPregunta = "ESCALA"): PreguntaBorrador {
+  return {
+    texto: "",
+    tipo,
+    respuestas: tipo === "SELECCION" ? ["Respuesta 1"] : [],
+  };
+}
+
 export function SurveyBuilderForm({
   encuestaId,
   initialTitulo = "",
@@ -33,13 +42,21 @@ export function SurveyBuilderForm({
 }: SurveyBuilderFormProps) {
   const [titulo, setTitulo] = useState(initialTitulo);
   const [preguntas, setPreguntas] = useState<PreguntaBorrador[]>(
-    initialPreguntas?.length ? initialPreguntas : [{ texto: "", tipo: "ESCALA" }]
+    initialPreguntas?.length
+      ? initialPreguntas.map((pregunta) => ({
+          ...pregunta,
+          respuestas:
+            pregunta.tipo === "SELECCION" && pregunta.respuestas.length === 0
+              ? ["Respuesta 1"]
+              : pregunta.respuestas,
+        }))
+      : [nuevaPregunta()]
   );
   const [error, setError] = useState<string | null>(null);
   const [enviando, setEnviando] = useState(false);
 
   function agregarPregunta() {
-    setPreguntas((prev) => [...prev, { texto: "", tipo: "ESCALA" }]);
+    setPreguntas((prev) => [...prev, nuevaPregunta()]);
   }
 
   function quitarPregunta(index: number) {
@@ -56,6 +73,60 @@ export function SurveyBuilderForm({
     );
   }
 
+  function cambiarTipoPregunta(index: number, tipo: TipoPregunta) {
+    setPreguntas((prev) =>
+      prev.map((pregunta, i) =>
+        i === index
+          ? {
+              ...pregunta,
+              tipo,
+              respuestas:
+                tipo === "SELECCION"
+                  ? pregunta.respuestas.length
+                    ? pregunta.respuestas
+                    : ["Respuesta 1"]
+                  : pregunta.respuestas,
+            }
+          : pregunta
+      )
+    );
+  }
+
+  function agregarRespuesta(index: number) {
+    setPreguntas((prev) =>
+      prev.map((pregunta, i) =>
+        i === index
+          ? {
+              ...pregunta,
+              respuestas: [
+                ...pregunta.respuestas,
+                `Respuesta ${pregunta.respuestas.length + 1}`,
+              ],
+            }
+          : pregunta
+      )
+    );
+  }
+
+  function actualizarRespuesta(
+    preguntaIndex: number,
+    respuestaIndex: number,
+    texto: string
+  ) {
+    setPreguntas((prev) =>
+      prev.map((pregunta, i) =>
+        i === preguntaIndex
+          ? {
+              ...pregunta,
+              respuestas: pregunta.respuestas.map((respuesta, j) =>
+                j === respuestaIndex ? texto : respuesta
+              ),
+            }
+          : pregunta
+      )
+    );
+  }
+
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
     setError(null);
@@ -66,6 +137,14 @@ export function SurveyBuilderForm({
     }
     if (preguntas.some((p) => !p.texto.trim())) {
       setError("Todas las preguntas necesitan texto.");
+      return;
+    }
+    if (
+      preguntas.some(
+        (p) => p.tipo === "SELECCION" && p.respuestas.some((respuesta) => !respuesta.trim())
+      )
+    ) {
+      setError("Todas las respuestas necesitan texto.");
       return;
     }
 
@@ -123,7 +202,7 @@ export function SurveyBuilderForm({
               <select
                 value={pregunta.tipo}
                 onChange={(e) =>
-                  actualizarPregunta(index, "tipo", e.target.value)
+                  cambiarTipoPregunta(index, e.target.value as TipoPregunta)
                 }
                 className="h-9 rounded-md border border-slate-300 bg-white px-2 text-sm text-slate-700"
               >
@@ -133,6 +212,34 @@ export function SurveyBuilderForm({
                   </option>
                 ))}
               </select>
+              {pregunta.tipo === "SELECCION" && (
+                <div className="space-y-2 pt-2">
+                  {pregunta.respuestas.map((respuesta, respuestaIndex) => (
+                    <div key={respuestaIndex} className="flex items-center gap-2">
+                      <Input
+                        value={respuesta}
+                        onChange={(e) =>
+                          actualizarRespuesta(index, respuestaIndex, e.target.value)
+                        }
+                        placeholder={`Respuesta ${respuestaIndex + 1}`}
+                      />
+                      <span
+                        aria-hidden="true"
+                        className="h-4 w-4 shrink-0 rounded-full border border-slate-400"
+                      />
+                    </div>
+                  ))}
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="px-3 py-1.5"
+                    onClick={() => agregarRespuesta(index)}
+                  >
+                    <Plus className="h-4 w-4" />
+                    Agregar respuesta
+                  </Button>
+                </div>
+              )}
             </div>
             {preguntas.length > 1 && (
               <Button

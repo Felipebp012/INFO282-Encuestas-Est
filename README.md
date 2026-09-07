@@ -2,7 +2,7 @@
 
 ## Qué incluye
 - `/encuestas` — Mis encuestas: lista de las encuestas guardadas
-- `/encuestas/nueva` — Crear encuesta: título + preguntas dinámicas (escala, selección única, texto abierto)
+- `/encuestas/nueva` — Crear encuesta: título + preguntas dinámicas (escala, selección única con respuestas editables, texto abierto)
 - `/encuestas/[id]` — Detalle: ver las preguntas de una encuesta ya guardada
 
 ## Qué NO incluye
@@ -23,7 +23,7 @@
    ```
    npx prisma migrate dev --name init
    ```
-   Esto crea el archivo `prisma/dev.db` con las tablas `Encuesta` y `Pregunta`.
+   Esto crea el archivo `prisma/dev.db` con las tablas `Encuesta`, `Pregunta` y `Respuesta`.
 
 3. Levantar el servidor de desarrollo:
    ```
@@ -59,12 +59,12 @@ src/
     encuestas/nueva/page.tsx     Crear encuesta
     encuestas/[id]/page.tsx      Detalle de una encuesta
   components/
-    survey-builder-form.tsx      Formulario dinámico de preguntas (client component)
+    survey-builder-form.tsx      Formulario dinámico de preguntas y respuestas (client component)
     ui/                          Button, Input, Label, Card (estilo shadcn, escritos a mano)
   lib/
     prisma.ts                    Cliente de Prisma
     actions.ts                   Server Actions: crearEncuesta, obtenerEncuestas, obtenerEncuesta
-prisma/schema.prisma             Modelo de datos: Encuesta, Pregunta
+prisma/schema.prisma             Modelo de datos: Encuesta, Pregunta, Respuesta
 ```
 
 ## Nota sobre seguridad de dependencias
