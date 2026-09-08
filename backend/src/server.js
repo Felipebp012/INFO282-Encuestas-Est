@@ -2,7 +2,7 @@ import http from "node:http";
 import { encuestaSchema } from "./encuestas/schema.js";
 import * as repository from "./encuestas/repository.js";
 
-const port = Number(process.env.PORT ?? 4000);
+const port = Number(process.env.PORT ?? 4009);
 
 function sendJson(response, status, body) {
   response.writeHead(status, {

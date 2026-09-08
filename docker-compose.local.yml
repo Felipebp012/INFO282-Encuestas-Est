@@ -1,16 +1,16 @@
 services:
   grupo9_bdd:
     image: postgres:16-alpine
-    container_name: grupo9_bdd
+    container_name: grupo9_bdd_local
     restart: always
-    networks:
-      - red_taller_software
+    ports:
+      - "5432:5432"
     environment:
       POSTGRES_USER: admin
       POSTGRES_PASSWORD: password123
       POSTGRES_DB: encuestas_db
     volumes:
-      - grupo9_postgres_data:/var/lib/postgresql/data
+      - postgres_data_local:/var/lib/postgresql/data
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U admin -d encuestas_db"]
       interval: 5s
@@ -18,18 +18,18 @@ services:
       retries: 5
 
   grupo9_backend:
-    container_name: grupo9_backend
+    container_name: grupo9_backend_local
     build:
       context: ./backend
       dockerfile: Dockerfile
-    networks:
-      - red_taller_software
+    ports:
+      - "4000:4000"
     environment:
       - DATABASE_URL=postgresql://admin:password123@grupo9_bdd:5432/encuestas_db?schema=public
-      - PORT=4009
-      - ORIGIN=http://grupo9.146.83.216.166.nip.io
+      - PORT=4000
+      - ORIGIN=http://localhost:3009
     healthcheck:
-      test: ["CMD", "node", "-e", "fetch('http://localhost:4009/health').then(response => process.exit(response.ok ? 0 : 1)).catch(() => process.exit(1))"]
+      test: ["CMD", "node", "-e", "fetch('http://localhost:4000/health').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"]
       interval: 5s
       timeout: 3s
       retries: 10
@@ -38,23 +38,19 @@ services:
         condition: service_healthy
 
   grupo9_frontend:
-    container_name: grupo9_frontend
+    container_name: grupo9_frontend_local
     build:
       context: .
       dockerfile: docker/app/Dockerfile.dev
-    networks:
-      - red_taller_software
+    ports:
+      - "3009:3009"
     environment:
-      - BACKEND_URL=http://grupo9_backend:4009
-      - NEXT_PUBLIC_BACKEND_URL=http://grupo9.146.83.216.166.nip.io/api
+      - BACKEND_URL=http://grupo9_backend:4000
+      - NEXT_PUBLIC_BACKEND_URL=http://localhost:4000
       - PORT=3009
     depends_on:
       grupo9_backend:
         condition: service_healthy
 
-networks:
-  red_taller_software:
-    external: true
-
 volumes:
-  grupo9_postgres_data:
+  postgres_data_local:

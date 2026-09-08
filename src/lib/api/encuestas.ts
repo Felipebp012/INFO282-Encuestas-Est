@@ -1,6 +1,9 @@
 import type { EncuestaInput } from "@/features/encuestas/types/encuesta.types";
 
-const backendUrl = process.env.BACKEND_URL ?? "http://localhost:4000";
+const backendUrl =
+  typeof window === "undefined"
+    ? (process.env.BACKEND_URL ?? "http://grupo9_backend:4000")
+    : (process.env.NEXT_PUBLIC_BACKEND_URL ?? "http://localhost:4000");
 
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
   const response = await fetch(`${backendUrl}${path}`, {
