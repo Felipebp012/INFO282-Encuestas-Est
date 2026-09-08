@@ -115,8 +115,14 @@ export function SurveyBuilderForm({
     respuestaIndex: number;
   } | null>(null);
   const preguntaArrastrada = useRef<string | null>(null);
+  const inicioArrastrePregunta = useRef(0);
+  const desplazamientoPregunta = useRef(0);
   const autoScrollFrame = useRef<number | null>(null);
   const [preguntaEnMovimiento, setPreguntaEnMovimiento] = useState(false);
+  const [preguntaDesplazada, setPreguntaDesplazada] = useState<string | null>(
+    null
+  );
+  const [desplazamientoVisual, setDesplazamientoVisual] = useState(0);
 
   function actualizarPreguntas(
     actualizar: (actuales: PreguntaBorrador[]) => PreguntaBorrador[],
@@ -365,13 +371,29 @@ export function SurveyBuilderForm({
     id: string
   ) {
     preguntaArrastrada.current = id;
+    inicioArrastrePregunta.current = event.clientY;
+    desplazamientoPregunta.current = 0;
+    setPreguntaDesplazada(id);
+    setDesplazamientoVisual(0);
     setPreguntaEnMovimiento(true);
     event.dataTransfer.effectAllowed = "move";
     event.dataTransfer.setData("text/plain", id);
   }
 
+  function moverVisualPregunta(event: DragEvent<HTMLDivElement>, id: string) {
+    if (preguntaArrastrada.current !== id) return;
+
+    const desplazamiento = event.clientY - inicioArrastrePregunta.current;
+    desplazamientoPregunta.current = desplazamiento;
+    setDesplazamientoVisual(desplazamiento);
+    setPreguntaDesplazada(id);
+  }
+
   function finalizarArrastrePregunta() {
     preguntaArrastrada.current = null;
+    desplazamientoPregunta.current = 0;
+    setPreguntaDesplazada(null);
+    setDesplazamientoVisual(0);
     setPreguntaEnMovimiento(false);
   }
 
@@ -457,7 +479,9 @@ export function SurveyBuilderForm({
         />
       </div>
 
-      <div className="space-y-4">
+      <div
+        className={`space-y-4 ${preguntaEnMovimiento ? "pb-[60vh]" : ""}`}
+      >
         <Label>Preguntas</Label>
 
         {preguntas.map((pregunta, index) => (
@@ -466,13 +490,21 @@ export function SurveyBuilderForm({
             ref={(element) => {
               preguntaRefs.current[index] = element;
             }}
-            className="flex items-start gap-3 rounded-md border border-slate-200 bg-white p-4 transition-colors"
-            onDragEnter={(event) => {
-              moverPreguntaDuranteArrastre(event, pregunta.id ?? "");
-              desplazarDuranteArrastre(event);
+            className={`flex items-start gap-3 rounded-md border border-slate-200 p-4 transition-[transform,box-shadow,opacity] duration-150 ease-out ${
+              preguntaDesplazada === pregunta.id
+                ? "relative z-20 scale-[1.015] opacity-90 shadow-xl"
+                : ""
+            }`}
+            style={{
+              transform:
+                preguntaDesplazada === pregunta.id
+                  ? `translate3d(0, ${desplazamientoVisual}px, 0) scale(1.015)`
+                  : "translate3d(0, 0, 0) scale(1)",
+              zIndex: preguntaDesplazada === pregunta.id ? 20 : 0,
             }}
+            onDrag={(event) => moverVisualPregunta(event, pregunta.id ?? "")}
             onDragOver={(event) => {
-              event.preventDefault();
+              moverPreguntaDuranteArrastre(event, pregunta.id ?? "");
               desplazarDuranteArrastre(event);
             }}
             onDrop={() => {
