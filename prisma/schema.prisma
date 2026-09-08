@@ -1,0 +1,442 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ============================================================
+// Modelo de datos completo — ver docs/MODELO_DATOS.md (fuente de verdad).
+// Nota (ver docs/DECISIONES.md): los PK usan cuid() en vez de enteros
+// autoincrementales, para ser consistentes con el resto del código.
+//
+// Solo una fracción de estas tablas tiene código de aplicación esta
+// vuelta (ver docs/PROGRESO.md) — el resto queda lista para construir
+// encima cuando corresponda, sin tener que rediseñar el esquema.
+// ============================================================
+
+// ---------- 3.1 Usuarios, roles y permisos ----------
+
+model Persona {
+  id       String   @id @default(cuid())
+  rut      String   @unique
+  nombre   String
+  creadoEn DateTime @default(now())
+
+  usuario                    Usuario?
+  participantesSeccion       SeccionCursoAlumno[]
+  participantesUnidad        UnidadOrganizacionalUsuario[]
+  participantesLibre         EncuestaParticipanteLibre[]
+}
+
+model Usuario {
+  id                String   @id @default(cuid())
+  personaId         String?  @unique
+  persona           Persona? @relation(fields: [personaId], references: [id])
+  nombre            String
+  email             String   @unique
+  emailVerificado   Boolean  @default(true) // ver docs/DECISIONES.md
+  passwordHash      String
+  tokenVerificacion String?
+  tokenExpiracion   DateTime?
+  creadoEn          DateTime @default(now())
+
+  roles                 UsuarioRol[]
+  plantillasCreadas     Plantilla[]               @relation("PlantillaCreador")
+  plantillasCompartidas PlantillaCompartida[]
+  encuestasCreadas      Encuesta[]                @relation("EncuestaCreador")
+  comentarios           EncuestaComentario[]
+  apiTokens             ApiToken[]
+  configuracionesHechas ConfiguracionPlataforma[]
+}
+
+model DominioInstitucional {
+  id                   String @id @default(cuid())
+  dominio              String @unique
+  rolPredeterminadoId  String
+  rolPredeterminado    Rol    @relation(fields: [rolPredeterminadoId], references: [id])
+}
+
+model Rol {
+  id               String   @id @default(cuid())
+  nombre           String   @unique
+  descripcion      String?
+  esPredeterminado Boolean  @default(false)
+
+  permisos            RolPermiso[]
+  usuarios            UsuarioRol[]
+  dominiosPredeterminados DominioInstitucional[]
+}
+
+model Permiso {
+  id          String  @id @default(cuid())
+  codigo      String  @unique
+  descripcion String?
+  categoria   String?
+
+  roles  RolPermiso[]
+  tokens TokenPermiso[]
+}
+
+model RolPermiso {
+  rolId     String
+  permisoId String
+
+  rol     Rol     @relation(fields: [rolId], references: [id], onDelete: Cascade)
+  permiso Permiso @relation(fields: [permisoId], references: [id], onDelete: Cascade)
+
+  @@id([rolId, permisoId])
+}
+
+model UnidadOrganizacional {
+  id            String  @id @default(cuid())
+  nombre        String
+  tipo          String
+  unidadPadreId String?
+
+  unidadPadre UnidadOrganizacional?  @relation("Jerarquia", fields: [unidadPadreId], references: [id])
+  subunidades UnidadOrganizacional[] @relation("Jerarquia")
+
+  usuarioRoles         UsuarioRol[]
+  cursos               Curso[]
+  usuariosDeLaUnidad   UnidadOrganizacionalUsuario[]
+  encuestasIncluidas   EncuestaUnidadOrganizacional[]
+}
+
+model UsuarioRol {
+  id                     String   @id @default(cuid())
+  usuarioId              String
+  rolId                  String
+  unidadOrganizacionalId String
+  fechaAsignacion        DateTime @default(now())
+
+  usuario              Usuario              @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+  rol                  Rol                  @relation(fields: [rolId], references: [id])
+  unidadOrganizacional UnidadOrganizacional @relation(fields: [unidadOrganizacionalId], references: [id])
+
+  @@unique([usuarioId, rolId, unidadOrganizacionalId])
+}
+
+// ---------- 3.2 Plantillas ----------
+
+model Plantilla {
+  id               String   @id @default(cuid())
+  usuarioCreadorId String
+  nombre           String
+  categoria        String
+  version          Int      @default(1)
+  estado           String   @default("publicada") // borrador | publicada | archivada
+  creadoEn         DateTime @default(now())
+
+  usuarioCreador Usuario              @relation("PlantillaCreador", fields: [usuarioCreadorId], references: [id])
+  preguntas      PlantillaPregunta[]
+  encuestas      Encuesta[]
+  compartidas    PlantillaCompartida[]
+}
+
+model PlantillaPregunta {
+  id                  String  @id @default(cuid())
+  plantillaId         String
+  tipo                String // texto_libre | opcion_unica | opcion_multiple | escala | si_no
+  texto               String
+  orden               Int
+  obligatoria         Boolean @default(true)
+  minSelecciones      Int?
+  maxSelecciones      Int?
+  mostrarSiPreguntaId String?
+  mostrarSiOpcionId   String?
+
+  plantilla       Plantilla         @relation(fields: [plantillaId], references: [id], onDelete: Cascade)
+  opciones        PlantillaOpcion[]
+  preguntasOrigen Pregunta[]
+}
+
+model PlantillaOpcion {
+  id                  String @id @default(cuid())
+  plantillaPreguntaId String
+  texto               String
+  orden               Int
+  valorNumerico       Int?
+
+  plantillaPregunta PlantillaPregunta @relation(fields: [plantillaPreguntaId], references: [id], onDelete: Cascade)
+}
+
+model PlantillaCompartida {
+  plantillaId      String
+  usuarioId        String
+  fechaCompartido  DateTime @default(now())
+
+  plantilla Plantilla @relation(fields: [plantillaId], references: [id], onDelete: Cascade)
+  usuario   Usuario   @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+
+  @@id([plantillaId, usuarioId])
+}
+
+// ---------- 3.3 Cursos y rosters ----------
+
+model Curso {
+  id                     String  @id @default(cuid())
+  unidadOrganizacionalId String?
+  codigo                 String
+  nombre                 String
+  activo                 Boolean @default(true)
+
+  unidadOrganizacional UnidadOrganizacional? @relation(fields: [unidadOrganizacionalId], references: [id])
+  secciones            SeccionCurso[]
+}
+
+model SeccionCurso {
+  id      String @id @default(cuid())
+  cursoId String
+  anio    Int
+  semestre Int
+  grupo   String?
+
+  curso     Curso                @relation(fields: [cursoId], references: [id])
+  alumnos   SeccionCursoAlumno[]
+  encuestas EncuestaSeccionCurso[]
+}
+
+model SeccionCursoAlumno {
+  id             String    @id @default(cuid())
+  seccionCursoId String
+  personaId      String
+  email          String
+  rut            String
+  activo         Boolean   @default(true)
+  fechaAlta      DateTime  @default(now())
+  fechaBaja      DateTime?
+
+  seccionCurso SeccionCurso        @relation(fields: [seccionCursoId], references: [id], onDelete: Cascade)
+  persona      Persona             @relation(fields: [personaId], references: [id])
+  participaciones EncuestaParticipante[]
+}
+
+model UnidadOrganizacionalUsuario {
+  id                     String    @id @default(cuid())
+  unidadOrganizacionalId String
+  personaId              String
+  email                  String
+  rut                    String
+  tipo                   String // estudiante | docente | administrativo | otro
+  activo                 Boolean   @default(true)
+  fechaAlta              DateTime  @default(now())
+  fechaBaja              DateTime?
+
+  unidadOrganizacional UnidadOrganizacional @relation(fields: [unidadOrganizacionalId], references: [id])
+  persona              Persona              @relation(fields: [personaId], references: [id])
+  participaciones      EncuestaParticipanteUnidad[]
+}
+
+// ---------- 3.4 Encuestas y participación ----------
+
+model Encuesta {
+  id               String    @id @default(cuid())
+  plantillaId      String?
+  usuarioCreadorId String
+  modo             String    @default("libre") // cursos | unidad | libre
+  unidad           String? // metadato descriptivo (ej. "Unidad 2"), ver HU-0507
+  titulo           String
+  asignatura       String?
+  escuela          String?
+  facultad         String?
+  fechaInicio      DateTime  @default(now())
+  fechaFin         DateTime
+  mensajeCierre    String?
+  estado           String    @default("activa") // borrador | activa | cerrada (ver docs/DECISIONES.md)
+  umbralPorcentaje Float     @default(0.33)
+  umbralMinimo     Int       @default(5)
+  creadoEn         DateTime  @default(now())
+
+  plantilla      Plantilla? @relation(fields: [plantillaId], references: [id])
+  usuarioCreador Usuario    @relation("EncuestaCreador", fields: [usuarioCreadorId], references: [id])
+
+  preguntas             Pregunta[]
+  seccionesCurso        EncuestaSeccionCurso[]
+  participantesCurso    EncuestaParticipante[]
+  unidadesOrganizacionales EncuestaUnidadOrganizacional[]
+  participantesUnidad   EncuestaParticipanteUnidad[]
+  participantesLibre    EncuestaParticipanteLibre[]
+  respuestas            Respuesta[]
+  comentarios           EncuestaComentario[]
+  codigosQr             CodigoQr[]
+}
+
+model EncuestaSeccionCurso {
+  encuestaId     String
+  seccionCursoId String
+
+  encuesta     Encuesta     @relation(fields: [encuestaId], references: [id], onDelete: Cascade)
+  seccionCurso SeccionCurso @relation(fields: [seccionCursoId], references: [id])
+
+  @@id([encuestaId, seccionCursoId])
+  @@index([seccionCursoId])
+}
+
+model EncuestaParticipante {
+  id                    String    @id @default(cuid())
+  encuestaId            String
+  seccionCursoAlumnoId  String
+  respondido            Boolean   @default(false)
+  fechaRespuesta        DateTime?
+  recordatorioEnviado   Boolean   @default(false)
+  fechaRecordatorio     DateTime?
+
+  encuesta           Encuesta           @relation(fields: [encuestaId], references: [id], onDelete: Cascade)
+  seccionCursoAlumno SeccionCursoAlumno @relation(fields: [seccionCursoAlumnoId], references: [id])
+}
+
+model EncuestaUnidadOrganizacional {
+  encuestaId             String
+  unidadOrganizacionalId String
+
+  encuesta             Encuesta             @relation(fields: [encuestaId], references: [id], onDelete: Cascade)
+  unidadOrganizacional UnidadOrganizacional @relation(fields: [unidadOrganizacionalId], references: [id])
+
+  @@id([encuestaId, unidadOrganizacionalId])
+  @@index([unidadOrganizacionalId])
+}
+
+model EncuestaParticipanteUnidad {
+  id                             String    @id @default(cuid())
+  encuestaId                     String
+  unidadOrganizacionalUsuarioId  String
+  respondido                     Boolean   @default(false)
+  fechaRespuesta                 DateTime?
+  recordatorioEnviado            Boolean   @default(false)
+  fechaRecordatorio              DateTime?
+
+  encuesta                     Encuesta                     @relation(fields: [encuestaId], references: [id], onDelete: Cascade)
+  unidadOrganizacionalUsuario  UnidadOrganizacionalUsuario  @relation(fields: [unidadOrganizacionalUsuarioId], references: [id])
+}
+
+// EncuestaParticipanteLibre — la única de las tres tablas de autorización
+// con código de aplicación real esta vuelta (HU-0201/0202/0203).
+model EncuestaParticipanteLibre {
+  id                  String    @id @default(cuid())
+  encuestaId          String
+  personaId           String?
+  email               String
+  rut                 String?
+  respondido          Boolean   @default(false)
+  fechaRespuesta      DateTime?
+  fechaCarga          DateTime  @default(now())
+  recordatorioEnviado Boolean   @default(false)
+  fechaRecordatorio   DateTime?
+
+  encuesta Encuesta @relation(fields: [encuestaId], references: [id], onDelete: Cascade)
+  persona  Persona? @relation(fields: [personaId], references: [id])
+
+  @@unique([encuestaId, email])
+}
+
+model EncuestaComentario {
+  id            String   @id @default(cuid())
+  encuestaId    String
+  usuarioId     String
+  texto         String
+  fechaCreacion DateTime @default(now())
+
+  encuesta Encuesta @relation(fields: [encuestaId], references: [id], onDelete: Cascade)
+  usuario  Usuario  @relation(fields: [usuarioId], references: [id])
+}
+
+// ---------- 3.5 Preguntas y respuestas ----------
+
+model Pregunta {
+  id                        String  @id @default(cuid())
+  encuestaId                String
+  plantillaPreguntaOrigenId String?
+  tipo                      String // texto_libre | opcion_unica | opcion_multiple | escala | si_no
+  texto                     String
+  orden                     Int
+  obligatoria               Boolean @default(true)
+  minSelecciones            Int?
+  maxSelecciones            Int?
+  mostrarSiPreguntaId       String? // HU-0502 — sin FK real, se valida en aplicación
+  mostrarSiOpcionId         String?
+
+  encuesta              Encuesta           @relation(fields: [encuestaId], references: [id], onDelete: Cascade)
+  plantillaPreguntaOrigen PlantillaPregunta? @relation(fields: [plantillaPreguntaOrigenId], references: [id])
+  opciones              OpcionRespuesta[]
+  detalles              RespuestaDetalle[]
+}
+
+model OpcionRespuesta {
+  id            String @id @default(cuid())
+  preguntaId    String
+  texto         String
+  orden         Int
+  valorNumerico Int? // HU-0503
+
+  pregunta Pregunta           @relation(fields: [preguntaId], references: [id], onDelete: Cascade)
+  detalles RespuestaDetalle[]
+}
+
+// RESPUESTA: deliberadamente sin ninguna FK hacia identidad (HU-0301/anonimato).
+model Respuesta {
+  id         String   @id @default(cuid())
+  encuestaId String
+  fechaEnvio DateTime @default(now())
+
+  encuesta Encuesta           @relation(fields: [encuestaId], references: [id], onDelete: Cascade)
+  detalles RespuestaDetalle[]
+}
+
+model RespuestaDetalle {
+  id          String  @id @default(cuid())
+  respuestaId String
+  preguntaId  String
+  valorTexto  String?
+  opcionId    String?
+
+  respuesta Respuesta        @relation(fields: [respuestaId], references: [id], onDelete: Cascade)
+  pregunta  Pregunta         @relation(fields: [preguntaId], references: [id])
+  opcion    OpcionRespuesta? @relation(fields: [opcionId], references: [id])
+}
+
+// ---------- 3.6 Distribución y acceso API ----------
+
+model CodigoQr {
+  id              String   @id @default(cuid())
+  encuestaId      String
+  url             String
+  fechaGeneracion DateTime @default(now())
+
+  encuesta Encuesta @relation(fields: [encuestaId], references: [id], onDelete: Cascade)
+}
+
+model ApiToken {
+  id              String    @id @default(cuid())
+  usuarioId       String
+  token           String    @unique
+  fechaExpiracion DateTime?
+  creadoEn        DateTime  @default(now())
+
+  usuario  Usuario        @relation(fields: [usuarioId], references: [id])
+  permisos TokenPermiso[]
+}
+
+model TokenPermiso {
+  tokenId   String
+  permisoId String
+
+  token   ApiToken @relation(fields: [tokenId], references: [id], onDelete: Cascade)
+  permiso Permiso  @relation(fields: [permisoId], references: [id])
+
+  @@id([tokenId, permisoId])
+}
+
+// ---------- 3.7 Configuración de la plataforma ----------
+
+model ConfiguracionPlataforma {
+  id                 String   @id @default(cuid())
+  minimoRespuestas   Int
+  porcentajeMinimo   Float
+  actualizadoPorId   String
+  fechaActualizacion DateTime @default(now())
+
+  actualizadoPor Usuario @relation(fields: [actualizadoPorId], references: [id])
+}
