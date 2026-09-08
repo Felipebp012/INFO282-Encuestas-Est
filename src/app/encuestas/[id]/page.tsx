@@ -1,11 +1,12 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
-import { obtenerEncuesta } from "@/lib/actions";
+import { obtenerEncuesta } from "@/lib/api/encuestas";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
 const ETIQUETAS_TIPO: Record<string, string> = {
   ESCALA: "Escala (1-5)",
   SELECCION: "Selección única",
+  SELECCION_MULTIPLE: "Selección múltiple",
   TEXTO: "Texto abierto",
 };
 
@@ -37,11 +38,19 @@ export default async function DetalleEncuestaPage({
             </CardHeader>
             <CardContent className="space-y-2 text-sm text-slate-500">
               <p>{ETIQUETAS_TIPO[pregunta.tipo]}</p>
-              {pregunta.tipo === "SELECCION" && pregunta.respuestas.length > 0 && (
+              {(pregunta.tipo === "SELECCION" ||
+                pregunta.tipo === "SELECCION_MULTIPLE") &&
+                pregunta.respuestas.length > 0 && (
                 <ul className="space-y-1 text-slate-700">
                   {pregunta.respuestas.map((respuesta) => (
                     <li key={respuesta.id} className="flex items-center gap-2">
-                      <span className="h-4 w-4 rounded-full border border-slate-400" />
+                      <span
+                        className={
+                          pregunta.tipo === "SELECCION"
+                            ? "h-4 w-4 rounded-full border border-slate-400"
+                            : "h-4 w-4 rounded-sm border border-slate-400"
+                        }
+                      />
                       {respuesta.texto}
                     </li>
                   ))}

@@ -1,5 +1,6 @@
 import Link from "next/link";
-import { eliminarEncuesta, obtenerEncuestas } from "@/lib/actions";
+import { eliminarEncuesta } from "@/features/encuestas/actions/encuesta.actions";
+import { obtenerEncuestas } from "@/lib/api/encuestas";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 

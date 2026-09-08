@@ -1,4 +1,4 @@
-import { SurveyBuilderForm } from "@/components/survey-builder-form";
+import { SurveyBuilderForm } from "@/features/encuestas/components/survey-builder-form";
 
 export default function NuevaEncuestaPage() {
   return (

@@ -1,0 +1,40 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum TipoPregunta {
+  ESCALA
+  SELECCION
+  SELECCION_MULTIPLE
+  TEXTO
+}
+
+model Encuesta {
+  id        String     @id @default(cuid())
+  titulo    String
+  creadoEn  DateTime   @default(now())
+  preguntas Pregunta[]
+}
+
+model Pregunta {
+  id         String        @id @default(cuid())
+  texto      String
+  tipo       TipoPregunta
+  orden      Int
+  encuesta   Encuesta      @relation(fields: [encuestaId], references: [id], onDelete: Cascade)
+  encuestaId String
+  respuestas Respuesta[]
+}
+
+model Respuesta {
+  id         String   @id @default(cuid())
+  texto      String
+  orden      Int
+  pregunta   Pregunta @relation(fields: [preguntaId], references: [id], onDelete: Cascade)
+  preguntaId String
+}

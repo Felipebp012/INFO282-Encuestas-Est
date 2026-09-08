@@ -1,7 +1,7 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
-import { SurveyBuilderForm } from "@/components/survey-builder-form";
-import { obtenerEncuesta } from "@/lib/actions";
+import { SurveyBuilderForm } from "@/features/encuestas/components/survey-builder-form";
+import { obtenerEncuesta } from "@/lib/api/encuestas";
 
 export default async function EditarEncuestaPage({
   params,
@@ -22,8 +22,15 @@ export default async function EditarEncuestaPage({
         initialTitulo={encuesta.titulo}
         initialPreguntas={encuesta.preguntas.map(({ texto, tipo, respuestas }) => ({
           texto,
-          tipo: tipo as "ESCALA" | "SELECCION" | "TEXTO",
-          respuestas: respuestas.map(({ texto }) => texto),
+          tipo: tipo as
+            | "ESCALA"
+            | "SELECCION"
+            | "SELECCION_MULTIPLE"
+            | "TEXTO",
+          respuestas: respuestas.map(({ texto }) => ({
+            texto,
+            predeterminada: false,
+          })),
         }))}
       />
     </div>

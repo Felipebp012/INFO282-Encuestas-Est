@@ -1,13 +1,19 @@
-# Plataforma de Encuestas — Prototipo local (frontend + persistencia básica)
+# Plataforma de Encuestas — frontend, backend y PostgreSQL
 
 ## Qué incluye
 - `/encuestas` — Mis encuestas: lista de las encuestas guardadas
 - `/encuestas/nueva` — Crear encuesta: título + preguntas dinámicas (escala, selección única con respuestas editables, texto abierto)
 - `/encuestas/[id]` — Detalle: ver las preguntas de una encuesta ya guardada
 
-## Qué NO incluye
-- Docker / PostgreSQL — usa SQLite en un archivo local; migrar a Postgres es
-  cambiar una línea en `prisma/schema.prisma`
+## Arquitectura Docker
+
+La aplicación se ejecuta en tres servicios:
+
+- `grupo9_frontend`: Next.js publicado en el puerto `3009`.
+- `grupo9_backend`: API HTTP y Prisma publicada en el puerto `4009`.
+- `grupo9_bdd`: PostgreSQL publicado en el puerto `5439`.
+
+El frontend se comunica con el backend mediante HTTP. Solo el backend se conecta directamente a PostgreSQL.
 
 ## Requisitos
 - Node.js 18 o superior
@@ -19,23 +25,24 @@
    npm install
    ```
 
-2. Configurar la base de datos local. Crea un archivo `.env` en la raíz:
+2. Configurar el backend local. Crea un archivo `.env` en la raíz:
    ```
-   DATABASE_URL="file:./dev.db"
+   BACKEND_URL="http://localhost:4009"
    ```
 
-3. Crear la base de datos local (SQLite) y generar el cliente de Prisma:
+3. Levantar los tres servicios con Docker:
    ```
-   npx prisma migrate deploy
+  docker compose up --build
    ```
-   Esto crea el archivo `prisma/dev.db` con las tablas `Encuesta`, `Pregunta` y `Respuesta`.
+
+  El backend aplica automáticamente las migraciones PostgreSQL al iniciar.
 
 4. Levantar el servidor de desarrollo:
    ```
    npm run dev
    ```
 
-5. Abrir http://localhost:3000 — te va a redirigir a `/encuestas`.
+5. Abrir http://localhost:3009 — te va a redirigir a `/encuestas`.
 
 ## Ver la base de datos directamente (opcional)
 ```
@@ -43,33 +50,16 @@ npx prisma studio
 ```
 Abre una interfaz web para mirar/editar las filas guardadas.
 
-## Migrar a PostgreSQL más adelante
-En `prisma/schema.prisma`, cambiar:
-```
-provider = "sqlite"
-```
-por:
-```
-provider = "postgresql"
-```
-y actualizar `DATABASE_URL` en `.env` con la cadena de conexión real
-(ej. la que entregue el contenedor Docker cuando lo agreguen). Después,
-correr `npx prisma migrate dev` de nuevo para recrear las tablas en Postgres.
-
 ## Estructura
 ```
-src/
-  app/
-    encuestas/page.tsx           Mis encuestas
-    encuestas/nueva/page.tsx     Crear encuesta
-    encuestas/[id]/page.tsx      Detalle de una encuesta
-  components/
-    survey-builder-form.tsx      Formulario dinámico de preguntas y respuestas (client component)
-    ui/                          Button, Input, Label, Card (estilo shadcn, escritos a mano)
-  lib/
-    prisma.ts                    Cliente de Prisma
-    actions.ts                   Server Actions: crearEncuesta, obtenerEncuestas, obtenerEncuesta
-prisma/schema.prisma             Modelo de datos: Encuesta, Pregunta, Respuesta
+  app/                            Rutas Next.js
+  components/ui/                  Componentes visuales reutilizables
+  features/encuestas/             UI, tipos, esquemas y acciones del frontend
+  lib/api/                        Cliente HTTP hacia el backend
+backend/
+  src/                            API, repositorio y conexión Prisma
+  prisma/                          Modelo y migraciones PostgreSQL
+docker-compose.yml                 grupo9_frontend, grupo9_backend, grupo9_bdd
 ```
 
 ## Nota sobre seguridad de dependencias
@@ -77,3 +67,7 @@ Se fijó `next@14.2.35`, que incluye los parches de las vulnerabilidades
 críticas reportadas en diciembre de 2025 (RCE y DoS en Server Components).
 Antes de desplegar esto en algún servidor real, revisa si hay una versión
 más nueva de Next.js disponible.
+
+## Documentación técnica
+
+Consulta [docs/ARQUITECTURA.md](docs/ARQUITECTURA.md) para conocer la estructura de carpetas, los componentes principales, el flujo de datos, los servicios Docker, las variables de entorno y los comandos frecuentes.

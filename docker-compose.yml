@@ -1,0 +1,53 @@
+services:
+  grupo9_bdd:
+    image: postgres:16-alpine
+    container_name: grupo9_bdd
+    restart: always
+    environment:
+      POSTGRES_USER: admin
+      POSTGRES_PASSWORD: password123
+      POSTGRES_DB: encuestas_db
+    ports:
+      - "5439:5432"
+    volumes:
+      - grupo9_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U admin -d encuestas_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  grupo9_backend:
+    container_name: grupo9_backend
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    ports:
+      - "4009:4000"
+    environment:
+      - DATABASE_URL=postgresql://admin:password123@grupo9_bdd:5432/encuestas_db?schema=public
+      - PORT=4000
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://localhost:4000/health').then(response => process.exit(response.ok ? 0 : 1)).catch(() => process.exit(1))"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    depends_on:
+      grupo9_bdd:
+        condition: service_healthy
+
+  grupo9_frontend:
+    container_name: grupo9_frontend
+    build:
+      context: .
+      dockerfile: docker/app/Dockerfile.dev
+    ports:
+      - "3009:3000"
+    environment:
+      - BACKEND_URL=http://grupo9_backend:4000
+    depends_on:
+      grupo9_backend:
+        condition: service_healthy
+
+volumes:
+  grupo9_postgres_data:
