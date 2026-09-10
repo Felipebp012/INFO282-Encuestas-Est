@@ -45,10 +45,16 @@ services:
     networks:
       - red_taller_software
     environment:
+      - DATABASE_URL=postgresql://admin:password123@grupo9_bdd:5432/encuestas_db?schema=public
+      - NEXTAUTH_URL=http://grupo9.146.83.216.166.nip.io
+      - NEXTAUTH_SECRET=un-secreto-seguro-para-taller-ingeso-grupo9
       - BACKEND_URL=http://grupo9_backend:4009
+      - HOSTNAME=0.0.0.0
       - NEXT_PUBLIC_BACKEND_URL=http://grupo9.146.83.216.166.nip.io/api
       - PORT=3009
     depends_on:
+      grupo9_bdd:
+        condition: service_healthy
       grupo9_backend:
         condition: service_healthy
 

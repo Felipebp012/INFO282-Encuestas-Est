@@ -7,5 +7,3 @@ yarn-debug.log*
 yarn-error.log*
 README.md
 backend
-prisma
-src/server

@@ -1,13 +1,15 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
-import { obtenerEncuesta } from "@/lib/api/encuestas";
+import { obtenerEncuesta } from "@/lib/actions/encuestas";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
 
-const ETIQUETAS_TIPO: Record<string, string> = {
-  ESCALA: "Escala (1-5)",
-  SELECCION: "Selección única",
-  SELECCION_MULTIPLE: "Selección múltiple",
-  TEXTO: "Texto abierto",
+const ETIQUETA_TIPO: Record<string, string> = {
+  texto_libre: "Texto abierto",
+  opcion_unica: "Selección única",
+  opcion_multiple: "Selección múltiple",
+  escala: "Escala",
+  si_no: "Sí / No",
 };
 
 export default async function DetalleEncuestaPage({
@@ -19,47 +21,65 @@ export default async function DetalleEncuestaPage({
   if (!encuesta) notFound();
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-8">
       <Link href="/encuestas" className="text-sm text-slate-500 hover:underline">
         ← Volver a mis encuestas
       </Link>
-      <h1 className="text-2xl font-semibold">{encuesta.titulo}</h1>
-      <p className="text-sm text-slate-500">
-        Creada el {new Date(encuesta.creadoEn).toLocaleDateString("es-CL")}
-      </p>
 
-      <div className="space-y-3">
-        {encuesta.preguntas.map((pregunta, index) => (
-          <Card key={pregunta.id}>
-            <CardHeader>
-              <CardTitle className="text-base">
-                {index + 1}. {pregunta.texto}
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-2 text-sm text-slate-500">
-              <p>{ETIQUETAS_TIPO[pregunta.tipo]}</p>
-              {(pregunta.tipo === "SELECCION" ||
-                pregunta.tipo === "SELECCION_MULTIPLE") &&
-                pregunta.respuestas.length > 0 && (
-                <ul className="space-y-1 text-slate-700">
-                  {pregunta.respuestas.map((respuesta) => (
-                    <li key={respuesta.id} className="flex items-center gap-2">
-                      <span
-                        className={
-                          pregunta.tipo === "SELECCION"
-                            ? "h-4 w-4 rounded-full border border-slate-400"
-                            : "h-4 w-4 rounded-sm border border-slate-400"
-                        }
-                      />
-                      {respuesta.texto}
+      <div>
+        <h1 className="text-2xl font-semibold">{encuesta.titulo}</h1>
+        <p className="text-sm text-slate-500">
+          {encuesta.asignatura ?? "Sin asignatura"} · {encuesta._count.respuestas}{" "}
+          respuestas / {encuesta._count.participantesLibre} habilitados
+        </p>
+      </div>
+
+      <div className="flex gap-2">
+        <Link href={`/encuestas/${encuesta.id}/participantes`}>
+          <Button variant="outline">
+            Participantes ({encuesta._count.participantesLibre})
+          </Button>
+        </Link>
+        <Link href={`/responder/${encuesta.id}`}>
+          <Button variant="outline">Ir a responder (para probar)</Button>
+        </Link>
+      </div>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Preguntas</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-2">
+          {encuesta.preguntas.map((p, i) => (
+            <div key={p.id} className="text-sm text-slate-600">
+              <p>
+                {i + 1}. {p.texto}{" "}
+                <span className="text-xs text-slate-400">({ETIQUETA_TIPO[p.tipo]})</span>
+                {p.mostrarSiPreguntaId && (
+                  <span className="text-xs text-slate-400"> · condicional</span>
+                )}
+              </p>
+              {p.opciones.length > 0 && (
+                <ul className="pl-4 text-xs text-slate-400">
+                  {p.opciones.map((o) => (
+                    <li key={o.id}>
+                      {o.texto}
+                      {o.valorNumerico !== null && ` (valor: ${o.valorNumerico})`}
                     </li>
                   ))}
                 </ul>
               )}
-            </CardContent>
-          </Card>
-        ))}
-      </div>
+            </div>
+          ))}
+        </CardContent>
+      </Card>
+
+      <p className="text-xs text-slate-400">
+        Esta es una base mínima (ver docs/PROGRESO.md): no hay panel de
+        resultados, estados borrador/activa/cerrada, ni distribución con QR
+        todavía — la encuesta queda "activa" desde que se crea, y el enlace
+        para responder es directamente <code>/responder/{encuesta.id}</code>.
+      </p>
     </div>
   );
 }

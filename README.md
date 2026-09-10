@@ -1,73 +1,117 @@
-# Plataforma de Encuestas — frontend, backend y PostgreSQL
+# Plataforma de Encuestas — Base mínima
 
-## Qué incluye
-- `/encuestas` — Mis encuestas: lista de las encuestas guardadas
-- `/encuestas/nueva` — Crear encuesta: título + preguntas dinámicas (escala, selección única con respuestas editables, texto abierto)
-- `/encuestas/[id]` — Detalle: ver las preguntas de una encuesta ya guardada
+Base para que **tú** sigas construyendo — no una implementación completa.
+Trae funcionando solo 6 historias de usuario puntuales, más la plomería
+mínima que necesitaban (login básico, crear encuesta sin plantillas). El
+modelo de datos completo del proyecto está en `prisma/schema.prisma`, listo
+para que construyas el resto encima sin rediseñar nada.
 
-## Arquitectura Docker
+📖 Lee primero:
+- **`docs/PROGRESO.md`** — qué funciona, qué no, y dónde vive cada cosa
+- **`docs/DECISIONES.md`** — qué se sacó a propósito y por qué
+- **`docs/MODELO_DATOS.md`** — el modelo de datos completo (fuente de verdad)
 
-La aplicación se ejecuta en tres servicios:
-
-- `grupo9_frontend`: Next.js publicado en el puerto `3009`.
-- `grupo9_backend`: API HTTP y Prisma publicada en el puerto `4009`.
-- `grupo9_bdd`: PostgreSQL publicado en el puerto `5439`.
-
-El frontend se comunica con el backend mediante HTTP. Solo el backend se conecta directamente a PostgreSQL.
-
-## Requisitos
-- Node.js 18 o superior
+## Stack
+Next.js 14 (App Router) + TypeScript + Tailwind CSS + shadcn/ui (Radix +
+CVA) + Zod + Auth.js (NextAuth) + Prisma + **PostgreSQL vía Docker**.
 
 ## Cómo correrlo
 
-1. Instalar dependencias:
+1. Levantar Postgres:
+   ```
+   docker compose up -d
+   ```
+
+2. Instalar dependencias:
    ```
    npm install
    ```
 
-2. Configurar el backend local. Crea un archivo `.env` en la raíz:
+3. Crear las tablas:
    ```
-   BACKEND_URL="http://localhost:4009"
-   ```
-
-3. Levantar los tres servicios con Docker:
-   ```
-  docker compose up --build
+   npx prisma migrate dev --name init
    ```
 
-  El backend aplica automáticamente las migraciones PostgreSQL al iniciar.
+4. Sembrar datos de prueba:
+   ```
+   npm run seed
+   ```
 
-4. Levantar el servidor de desarrollo:
+5. Levantar el servidor:
    ```
    npm run dev
    ```
 
-5. Abrir http://localhost:3009 — te va a redirigir a `/encuestas`.
+6. Abrir http://localhost:3000
 
-## Ver la base de datos directamente (opcional)
+## Usuarios de prueba
+
+| Correo | Contraseña |
+|---|---|
+| docente@demo.cl | docente123 |
+| estudiante@demo.cl | estudiante123 |
+
+El seed ya deja creada la encuesta **"Satisfacción POO 2026-1"**, con
+preguntas que ejercitan los 5 tipos (HU-0501), una condicional (HU-0502) y
+valores numéricos en escala/sí-no (HU-0503), y al estudiante de prueba ya
+habilitado para responderla (HU-0201).
+
+## Flujo para probar
+
+1. Entra como **docente** → `/encuestas` → entra a la encuesta de ejemplo.
+2. Copia el enlace `/responder/<id>` (se ve en la URL del detalle).
+3. Cierra sesión, entra como **estudiante**, abre ese enlace y respóndela
+   — vas a ver la pregunta condicional aparecer solo si respondes "No" a
+   la primera.
+4. Intenta entrar de nuevo a responder la misma encuesta con el mismo
+   estudiante — el sistema debe bloquear el reenvío (HU-0203).
+5. Vuelve como docente → `/encuestas/<id>/participantes` → sube un CSV
+   con columnas `email,rut` para agregar más gente habilitada (HU-0202).
+
+## Ver la base de datos directamente
 ```
 npx prisma studio
 ```
-Abre una interfaz web para mirar/editar las filas guardadas.
+
+## Detener/reiniciar Postgres
+```
+docker compose down          # detiene, conserva los datos
+docker compose down -v       # detiene y borra los datos (empezar de cero)
+```
 
 ## Estructura
 ```
-  app/                            Rutas Next.js
-  components/ui/                  Componentes visuales reutilizables
-  features/encuestas/             UI, tipos, esquemas y acciones del frontend
-  lib/api/                        Cliente HTTP hacia el backend
-backend/
-  src/                            API, repositorio y conexión Prisma
-  prisma/                          Modelo y migraciones PostgreSQL
-docker-compose.yml                 grupo9_frontend, grupo9_backend, grupo9_bdd
+docker-compose.yml            Postgres 16 local
+docs/
+  MODELO_DATOS.md             Modelo de datos completo (fuente de verdad)
+  PROGRESO.md                  Qué funciona y qué no
+  DECISIONES.md                 Simplificaciones deliberadas
+prisma/
+  schema.prisma               TODAS las tablas del modelo (solo una fracción tiene código de app)
+  seed.ts                      Usuarios de prueba + encuesta de ejemplo
+src/
+  middleware.ts                Protege /encuestas y /responder
+  lib/
+    auth.ts                    Login básico (email + contraseña, sin roles)
+    tipos-pregunta.ts           Tipos de pregunta y valores por defecto (HU-0501/0503)
+    actions/
+      encuestas.ts              Crear/listar/ver encuesta (mínimo)
+      participantes.ts           Importar CSV + verificar habilitación (HU-0201/0202)
+      respuestas.ts               Envío anónimo + una sola vez (HU-0203/0301)
+  app/
+    login/
+    encuestas/                   Mis encuestas, nueva, [id], [id]/participantes
+    responder/[id]/              Flujo del estudiante (HU-0201/0203/0502)
+  components/
+    encuesta-form.tsx            Constructor: tipos, condicional, valor numérico
+    responder-client.tsx          Formulario dinámico del estudiante
+    participantes-upload-form.tsx  Subida de CSV
 ```
 
-## Nota sobre seguridad de dependencias
-Se fijó `next@14.2.35`, que incluye los parches de las vulnerabilidades
-críticas reportadas en diciembre de 2025 (RCE y DoS en Server Components).
-Antes de desplegar esto en algún servidor real, revisa si hay una versión
-más nueva de Next.js disponible.
-
-## Documentación técnica
-
-Consulta [docs/ARQUITECTURA.md](docs/ARQUITECTURA.md) para conocer la estructura de carpetas, los componentes principales, el flujo de datos, los servicios Docker, las variables de entorno y los comandos frecuentes.
+## Notas de seguridad
+- `next@14.2.35` incluye los parches críticos de diciembre 2025; revisa si
+  hay una versión más nueva antes de desplegar en producción.
+- `NEXTAUTH_SECRET` en `.env` es un valor de ejemplo — genera uno real
+  (`openssl rand -base64 32`) antes de cualquier despliegue público.
+- Las credenciales de Postgres en `docker-compose.yml`/`.env`
+  (`survey`/`survey`) son solo para desarrollo local.

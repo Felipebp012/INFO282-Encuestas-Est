@@ -45,10 +45,16 @@ services:
     ports:
       - "3009:3009"
     environment:
+      - DATABASE_URL=postgresql://admin:password123@grupo9_bdd:5432/encuestas_db?schema=public
+      - NEXTAUTH_URL=http://localhost:3009
+      - NEXTAUTH_SECRET=un-secreto-seguro-para-taller-ingeso-grupo9
       - BACKEND_URL=http://grupo9_backend:4000
+      - HOSTNAME=0.0.0.0
       - NEXT_PUBLIC_BACKEND_URL=http://localhost:4000
       - PORT=3009
     depends_on:
+      grupo9_bdd:
+        condition: service_healthy
       grupo9_backend:
         condition: service_healthy
 
