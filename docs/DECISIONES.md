@@ -8,16 +8,12 @@
 > de otras historias.
 
 ## Docker + PostgreSQL
-`docker-compose.yml` levanta un contenedor `postgres:16` con usuario/clave
-`survey`/`survey` y base `survey_app`, mapeado al puerto 5432 local.
-`prisma/schema.prisma` usa `provider = "postgresql"` y `DATABASE_URL` en
-`.env` ya apunta a ese contenedor. **No pude levantar el contenedor ni
-correr las migraciones contra él desde este entorno** (el sandbox donde
-trabajo no tiene Docker disponible ni acceso a internet general) — sí
-pude verificar que el `schema.prisma` es sintácticamente válido y que
-todo el código de TypeScript compila. La primera vez que corras
-`docker compose up -d` seguido de `npx prisma migrate dev`, es el momento
-en que esto se prueba de verdad por primera vez contra Postgres real.
+El proyecto cuenta con dos configuraciones Docker Compose sincronizadas:
+- `docker-compose.yml`: para el entorno del servidor del taller (`red_taller_software` externa, subdominio `http://grupo9.146.83.216.166.nip.io`).
+- `docker-compose.local.yml`: para desarrollo local independiente (puertos mapeados en `localhost`).
+
+Ambos levantan `postgres:16-alpine` (`grupo9_bdd`) con usuario/clave `admin`/`password123` y base de datos `encuestas_db` (puerto 5432 local / 5439 en red externa).
+`prisma/schema.prisma` usa `provider = "postgresql"` y `DATABASE_URL` en `.env` apunta a esta base de datos. Además se conserva el microservicio API `grupo9_backend` (puerto 4000/4009) para responder a healthchecks y requerimientos de API del taller, asegurando que ambos compose levanten siempre de manera sana y coordinada.
 
 ## Login sin roles (HU-0103, versión mínima)
 El modelo de datos completo incluye verificación de correo por token y

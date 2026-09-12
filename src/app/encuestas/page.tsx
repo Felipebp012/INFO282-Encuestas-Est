@@ -23,23 +23,41 @@ export default async function EncuestasPage() {
         </p>
       ) : (
         <div className="space-y-4">
-          {encuestas.map((encuesta) => (
-            <Link key={encuesta.id} href={`/encuestas/${encuesta.id}`}>
-              <Card className="transition-shadow hover:shadow-md">
-                <CardHeader>
-                  <CardTitle>{encuesta.titulo}</CardTitle>
-                </CardHeader>
-                <CardContent className="flex items-center justify-between text-sm text-slate-500">
-                  <span>
-                    {encuesta._count.respuestas} respuestas ·{" "}
-                    {encuesta._count.participantesLibre} habilitados
-                  </span>
-                  <span>{encuesta.asignatura ?? "Sin asignatura"}</span>
-                </CardContent>
-              </Card>
-            </Link>
-          ))}
+          {encuestas.map((encuesta) => {
+            const cerradaManualmente = encuesta.estado === "cerrada";
+            const fechaFinPasada = encuesta.fechaFin ? new Date() > new Date(encuesta.fechaFin) : false;
+            const estaCerrada = cerradaManualmente || fechaFinPasada;
+
+            return (
+              <Link key={encuesta.id} href={`/encuestas/${encuesta.id}`}>
+                <Card className="transition-shadow hover:shadow-md">
+                  <CardHeader className="pb-2">
+                    <div className="flex items-center justify-between">
+                      <CardTitle className="text-lg">{encuesta.titulo}</CardTitle>
+                      {estaCerrada ? (
+                        <span className="rounded-full bg-red-100 px-2.5 py-0.5 text-xs font-semibold text-red-700">
+                          Cerrada
+                        </span>
+                      ) : (
+                        <span className="rounded-full bg-green-100 px-2.5 py-0.5 text-xs font-semibold text-green-700">
+                          Activa
+                        </span>
+                      )}
+                    </div>
+                  </CardHeader>
+                  <CardContent className="flex items-center justify-between text-sm text-slate-500">
+                    <span>
+                      {encuesta._count.respuestas} respuestas ·{" "}
+                      {encuesta._count.participantesLibre} habilitados
+                    </span>
+                    <span>{encuesta.asignatura ?? "Sin asignatura"}</span>
+                  </CardContent>
+                </Card>
+              </Link>
+            );
+          })}
         </div>
+
       )}
     </div>
   );

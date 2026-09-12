@@ -110,3 +110,42 @@ export async function obtenerEncuesta(id: string) {
     },
   });
 }
+
+export async function cambiarEstadoEncuesta(
+  id: string,
+  nuevoEstado: "activa" | "cerrada",
+  nuevaFechaFin?: string
+) {
+  const usuarioId = await usuarioActual();
+  const encuesta = await prisma.encuesta.findUnique({ where: { id } });
+
+  if (!encuesta || encuesta.usuarioCreadorId !== usuarioId) {
+    throw new Error("No tienes permisos para modificar esta encuesta.");
+  }
+
+  const updateData: { estado: string; fechaFin?: Date } = {
+    estado: nuevoEstado,
+  };
+
+  if (nuevoEstado === "activa" && nuevaFechaFin) {
+    const fechaObj = new Date(nuevaFechaFin);
+    if (isNaN(fechaObj.getTime())) {
+      throw new Error("La fecha de cierre ingresada no es válida.");
+    }
+    if (fechaObj <= new Date()) {
+      throw new Error("La nueva fecha de cierre debe ser en el futuro.");
+    }
+    updateData.fechaFin = fechaObj;
+  }
+
+  await prisma.encuesta.update({
+    where: { id },
+    data: updateData,
+  });
+
+  revalidatePath(`/encuestas/${id}`);
+  revalidatePath("/encuestas");
+}
+
+
+

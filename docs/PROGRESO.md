@@ -16,6 +16,8 @@
 | HU-0502 | Lógica condicional entre preguntas | `src/components/encuesta-form.tsx` (definir), `src/components/responder-client.tsx` (evaluar en vivo) |
 | HU-0503 | Valor numérico por opción (escala/sí-no) | `prisma/schema.prisma` (`OpcionRespuesta.valorNumerico`), `src/components/encuesta-form.tsx` |
 
+> 📄 **Documentación detallada de implementación y DoD:** Ver [docs/HISTORIAS_HU0501_HU0502_HU0503.md](file:///c:/Users/kahle/Desktop/Carpetas/Trabajos/Universidad/Taller%20Ingeso/INFO282-Encuestas-Est/docs/HISTORIAS_HU0501_HU0502_HU0503.md) para la especificación técnica completa, componentes clave y guía de pruebas de estas tres historias.
+
 **HU-0301 (anonimato)** también quedó aplicada, aunque no es una pantalla:
 `Respuesta` nunca tiene una FK hacia identidad — ver el comentario en
 `src/lib/actions/respuestas.ts`.

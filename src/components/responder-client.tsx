@@ -4,6 +4,10 @@ import { useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { enviarRespuesta } from "@/lib/actions/respuestas";
+import {
+  deserializarCondiciones,
+  evaluarCondiciones,
+} from "@/components/condicion-builder";
 
 interface Opcion {
   id: string;
@@ -46,14 +50,18 @@ export function ResponderClient({
   const [enviado, setEnviado] = useState(false);
 
   // HU-0502 — visibilidad en vivo según la lógica condicional configurada
-  // por el docente.
+  // por el docente. Soporta formato legacy (CUID simple) y nuevo (JSON múltiple).
   const visibles = useMemo(() => {
     return preguntas.filter((p) => {
       if (!p.mostrarSiPreguntaId) return true;
-      const respuestaCondicion = respuestas[p.mostrarSiPreguntaId];
-      return Boolean(
-        respuestaCondicion?.opcionIds?.includes(p.mostrarSiOpcionId ?? "")
+
+      const condiciones = deserializarCondiciones(
+        p.mostrarSiPreguntaId,
+        p.mostrarSiOpcionId
       );
+      if (!condiciones || condiciones.reglas.length === 0) return true;
+
+      return evaluarCondiciones(condiciones, respuestas);
     });
   }, [preguntas, respuestas]);
 

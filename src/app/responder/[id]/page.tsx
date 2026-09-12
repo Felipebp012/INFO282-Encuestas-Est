@@ -27,6 +27,16 @@ export default async function ResponderPage({
     );
   }
 
+  // Verificar si la fecha de cierre ya pasó
+  if (encuesta.fechaFin && new Date() > new Date(encuesta.fechaFin)) {
+    return (
+      <MensajeSimple
+        titulo={encuesta.titulo}
+        mensaje={`Esta encuesta se cerró el ${new Date(encuesta.fechaFin).toLocaleDateString("es-CL", { weekday: "long", year: "numeric", month: "long", day: "numeric", hour: "2-digit", minute: "2-digit" })}. Ya no se aceptan respuestas.`}
+      />
+    );
+  }
+
   // HU-0201 — verificar que quien responde pertenece al grupo objetivo.
   const participante = await verificarParticipante(params.id, email);
   if (!participante) {

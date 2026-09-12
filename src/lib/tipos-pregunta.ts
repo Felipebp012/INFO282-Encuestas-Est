@@ -30,6 +30,12 @@ export function opcionesPorDefecto(tipo: TipoPregunta) {
       { texto: "Muy de acuerdo", valorNumerico: 4 },
     ];
   }
+  if (tipo === "opcion_unica" || tipo === "opcion_multiple") {
+    return [
+      { texto: "Opción 1", valorNumerico: 1 },
+      { texto: "Opción 2", valorNumerico: 2 },
+    ];
+  }
   return [];
 }
 

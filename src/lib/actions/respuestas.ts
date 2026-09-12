@@ -21,6 +21,10 @@ export async function enviarRespuesta(
   if (!encuesta || encuesta.estado !== "activa") {
     throw new Error("Esta encuesta no está disponible para responder.");
   }
+  // Verificar si la fecha de cierre ya pasó (protección server-side)
+  if (encuesta.fechaFin && new Date() > new Date(encuesta.fechaFin)) {
+    throw new Error("Esta encuesta ya está cerrada. La fecha de cierre ha pasado.");
+  }
 
   const participante = await prisma.encuestaParticipanteLibre.findFirst({
     where: { encuestaId, email: { equals: correo } },

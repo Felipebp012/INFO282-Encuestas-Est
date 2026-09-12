@@ -1,308 +1,169 @@
-# Documentacion de la plataforma
+# Arquitectura del Sistema — Plataforma de Encuestas Universitarias
 
-## 1. Resumen
+Grupo 9 — Taller de Ingeniería de Software (INFO282)
 
-La plataforma permite crear, consultar, editar y eliminar encuestas. El proyecto esta dividido en tres servicios Docker:
+---
 
-```text
-Navegador
-   |
-   v
-grupo9_frontend  Next.js      localhost:3009
-   |
-   v
-grupo9_backend   API Node.js  localhost:4009
-   |
-   v
-grupo9_bdd       PostgreSQL   localhost:5439
-```
+## 1. Resumen y Topología
 
-Dentro de la red Docker, los servicios se comunican usando sus nombres y puertos internos:
-
-- Frontend: `grupo9_frontend:3000`
-- Backend: `grupo9_backend:4000`
-- Base de datos: `grupo9_bdd:5432`
-
-Los puertos terminados en `9` son los puertos publicados en el computador del usuario.
-
-### Puertos externos e internos
-
-En Docker, la configuracion de puertos usa el formato:
+La plataforma de encuestas está diseñada bajo una topología de servicios orquestada con Docker Compose, garantizando aislamiento, reproducibilidad y compatibilidad tanto en el entorno de despliegue del taller como en entornos locales de desarrollo.
 
 ```text
-PUERTO_EXTERNO:PUERTO_INTERNO
+                                        [ Navegador / Cliente ]
+                                                   |
+                        +--------------------------+--------------------------+
+                        | (http://localhost:3009 o                            | (http://localhost:4009 o
+                        |  http://grupo9.146.83.216.166.nip.io)               |  http://grupo9.146.83.216.166.nip.io/api)
+                        v                                                     v
+            +-----------------------+                             +-----------------------+
+            |    grupo9_frontend    |                             |    grupo9_backend     |
+            |     (Next.js 14)      |                             |   (API Node.js/REST)  |
+            |   App Router + Auth   |                             |    Healthcheck + CRUD |
+            |    Server Actions     |                             +-----------+-----------+
+            +-----------+-----------+                                         |
+                        |                                                     |
+                        | (Prisma ORM / Conexión directa)                     | (Prisma ORM / DB)
+                        +--------------------------+--------------------------+
+                                                   |
+                                                   v
+                                        +-----------------------+
+                                        |      grupo9_bdd       |
+                                        |     PostgreSQL 16     |
+                                        |   Modelo ~30 tablas   |
+                                        +-----------------------+
 ```
 
-El puerto externo es la puerta de entrada desde el computador del usuario o desde Internet. El puerto interno es el puerto donde realmente escucha la aplicacion dentro de su contenedor.
+---
 
-En este proyecto:
+## 2. Los Dos Entornos de Docker Compose
 
-```yaml
-"3009:3000" # Frontend: computador -> contenedor
-"4009:4000" # Backend: computador -> contenedor
-"5439:5432" # PostgreSQL: computador -> contenedor
-```
+El proyecto mantiene dos archivos Compose sincronizados para no interferir con los despliegues del curso ni con el trabajo local:
 
-La comunicacion queda asi:
+### A. `docker-compose.yml` (Servidor del Taller / Evaluación)
+* **Objetivo:** Despliegue en el servidor institucional del curso bajo el dominio asignado al grupo.
+* **Red:** Conectado a la red Docker externa preexistente `red_taller_software`.
+* **URLs de acceso:**
+  * Frontend: `http://grupo9.146.83.216.166.nip.io` (puerto interno `3009`).
+  * Backend API: `http://grupo9.146.83.216.166.nip.io/api` (puerto `4009`).
+  * Base de datos: `grupo9_bdd:5432` dentro de la red Docker.
+
+### B. `docker-compose.local.yml` (Desarrollo Local Autónomo)
+* **Objetivo:** Ejecutar todo el stack en cualquier máquina de desarrollo sin requerir redes externas creadas de antemano.
+* **Puertos publicados a localhost:**
+  * Frontend: `http://localhost:3009`
+  * Backend: `http://localhost:4000` (con `/health`)
+  * PostgreSQL: `localhost:5432`
+* **Comando de inicio:**
+  ```powershell
+  docker compose -f docker-compose.local.yml up -d
+  ```
+
+---
+
+## 3. Servicios del Sistema
+
+### 3.1. `grupo9_frontend` (Aplicación Principal Web)
+* **Tecnología:** Next.js 14.2 (App Router), React 18, TypeScript, Tailwind CSS, shadcn/ui (Radix UI), Zod.
+* **Autenticación:** Auth.js (NextAuth) con estrategia de credenciales y sesiones protegidas vía `src/middleware.ts`.
+* **Capa de Negocio y Datos:** Utiliza **Server Actions** (`src/lib/actions/`) que se ejecutan en el entorno seguro de Node.js del servidor Next.js, conectándose directamente a PostgreSQL mediante Prisma Client (`src/lib/prisma.ts`). Esto provee:
+  * Validación estricta en servidor con esquemas Zod.
+  * Respuestas anónimas sin vínculo de llave foránea al estudiante (HU-0301).
+  * Control de unicidad de respuesta (HU-0203) y validación de grupo objetivo (HU-0201).
+  * Carga y parseo seguro de nóminas CSV con PapaParse (HU-0202).
+
+#### Estructura de Rutas Frontend (`src/app/`):
+* `/login`: Inicio de sesión para docentes y estudiantes de prueba.
+* `/encuestas`: Panel de encuestas creadas por el usuario autenticado.
+* `/encuestas/nueva`: Constructor interactivo de encuestas con soporte para:
+  * 5 tipos de preguntas: Escala, Selección única, Selección múltiple, Texto libre y Sí/No (HU-0501).
+  * Lógica condicional interactiva entre preguntas (HU-0502).
+  * Asignación de valores numéricos a opciones de respuesta (HU-0503).
+* `/encuestas/[id]`: Detalle de la encuesta con métricas de respuestas y participantes habilitados.
+* `/encuestas/[id]/participantes`: Carga y gestión del listado CSV de estudiantes habilitados (HU-0202).
+* `/responder/[id]`: Flujo del estudiante para responder encuestas habilitadas, con evaluación dinámica de saltos condicionales en cliente y envío seguro.
+
+### 3.2. `grupo9_backend` (Microservicio API REST)
+* **Tecnología:** Node.js, Prisma Client, Zod.
+* **Ubicación del código:** Carpeta `backend/`.
+* **Función:** Cumple el rol de microservicio API independiente para la topología multicontenedor del taller.
+* **Endpoints expuestos:**
+  * `GET /health`: Healthcheck vital para Docker. El contenedor frontend no arranca hasta que este endpoint responda `200 OK`.
+  * `GET /encuestas`: Listado general de encuestas vía REST.
+  * `GET /encuestas/:id`: Detalle de una encuesta específica por identificador.
+  * `POST /encuestas`: Creación de encuestas vía payload JSON.
+  * `PUT /encuestas/:id`: Actualización de encuestas.
+  * `DELETE /encuestas/:id`: Eliminación de encuestas.
+
+### 3.3. `grupo9_bdd` (Base de Datos Relacional)
+* **Motor:** PostgreSQL 16 Alpine.
+* **Persistencia:** Volumen Docker gestionado (`grupo9_postgres_data` en servidor, `postgres_data_local` en local).
+* **Credenciales configuradas:**
+  * Usuario: `admin`
+  * Contraseña: `password123`
+  * Base de datos: `encuestas_db`
+* **Modelo relacional:** Detallado exhaustivamente en `docs/MODELO_DATOS.md` con ~30 tablas definidas en `prisma/schema.prisma`.
+
+---
+
+## 4. Flujo de Datos y Arquitectura de Funcionalidades
 
 ```text
-Desde el computador:                 Dentro de Docker:
-
-http://localhost:3009  ----------->  grupo9_frontend:3000
-http://localhost:4009  ----------->  grupo9_backend:4000
-localhost:5439        ----------->  grupo9_bdd:5432
+[Estudiante / Docente]
+         |
+         | 1. Formulario interactivo (React Client Component)
+         v
+[Server Action ("use server")]
+         |
+         | 2. Validación de sesión (NextAuth) y payload (Zod)
+         | 3. Reglas de negocio (Habilitación, unicidad, anonimato)
+         v
+   [Prisma ORM]
+         |
+         | 4. Query parametrizada vía pool TCP
+         v
+[PostgreSQL 16]
 ```
 
-Por eso el navegador usa `http://localhost:3009`, pero el frontend usa esta URL para comunicarse con el backend:
+### Principios clave implementados:
+1. **Anonimato por diseño (HU-0301):** La tabla `Respuesta` nunca guarda la llave foránea del usuario ni de la persona. El seguimiento de completitud se registra en tablas de autorización (`EncuestaParticipanteLibre.respondido = true`) de forma desacoplada para imposibilitar la trazabilidad cruzada.
+2. **Unicidad de respuesta (HU-0203):** La Server Action `enviarRespuesta` verifica en la misma transacción que el participante esté habilitado y que no figure como respondido antes de insertar la respuesta.
+3. **Validación de grupo objetivo (HU-0201 / HU-0202):** La importación por CSV almacena a los estudiantes habilitados por RUT y correo en `EncuestaParticipanteLibre`, validando la pertenencia antes de permitir desplegar el formulario de respuesta.
 
-```env
-BACKEND_URL=http://grupo9_backend:4000
-```
+---
 
-El frontend y el backend se comunican dentro de la red Docker, por lo que usan el nombre del servicio (`grupo9_backend`) y el puerto interno (`4000`). El puerto externo (`4009`) solo se utiliza para acceder al backend desde fuera de Docker.
+## 5. Comandos de Gestión y Operación
 
-Los puertos internos pueden mantenerse estandar entre distintos proyectos, porque cada proyecto tiene su propia red Docker. Los puertos externos si deben ser diferentes cuando varias aplicaciones se ejecutan en el mismo servidor.
-
-## 2. Estructura principal
-
-```text
-.
-├── src/                         Frontend Next.js
-│   ├── app/                     Rutas y paginas
-│   ├── components/ui/           Componentes visuales reutilizables
-│   ├── features/encuestas/      Funcionalidad de encuestas
-│   └── lib/api/                 Cliente HTTP hacia el backend
-├── backend/                     Backend independiente
-│   ├── src/                     API, validacion y persistencia
-│   ├── prisma/                  Modelo y migraciones PostgreSQL
-│   └── Dockerfile               Imagen del backend
-├── prisma/                      Configuracion historica/local anterior
-├── docker/                      Dockerfile del frontend
-├── docker-compose.yml            Orquestacion de los tres servicios
-├── .env                          Variables para ejecucion local
-├── .env.docker                  Variables de referencia para Docker
-└── .dockerignore                Archivos excluidos de la imagen frontend
-```
-
-## 3. Frontend: `src/`
-
-### `src/app/`
-
-Contiene el App Router de Next.js. Sus archivos representan paginas y rutas:
-
-- `layout.tsx`: layout global, metadata y estilos generales.
-- `page.tsx`: redirecciona la pagina inicial hacia `/encuestas`.
-- `encuestas/page.tsx`: lista las encuestas.
-- `encuestas/nueva/page.tsx`: pagina para crear una encuesta.
-- `encuestas/[id]/page.tsx`: detalle de una encuesta.
-- `encuestas/[id]/editar/page.tsx`: pagina para editar una encuesta.
-
-Las paginas obtienen datos mediante `src/lib/api/encuestas.ts`. No deben conectarse directamente a Prisma.
-
-### `src/components/ui/`
-
-Contiene componentes visuales genericos que pueden reutilizarse en cualquier funcionalidad:
-
-- `button.tsx`: boton con variantes visuales.
-- `card.tsx`: tarjeta y sus subcomponentes.
-- `input.tsx`: campo de entrada de texto.
-- `label.tsx`: etiqueta para formularios.
-
-### `src/features/encuestas/`
-
-Agrupa todo lo especifico de encuestas:
-
-- `components/survey-builder-form.tsx`: formulario interactivo para crear y editar encuestas.
-- `actions/encuesta.actions.ts`: Server Actions que reciben formularios y llaman al backend HTTP.
-- `schemas/encuesta.schema.ts`: validacion de titulos, preguntas y respuestas con Zod.
-- `types/encuesta.types.ts`: tipos TypeScript compartidos por el frontend.
-
-El formulario funciona en el navegador porque usa `use client` y administra su estado con React. Las preguntas y respuestas se pueden reordenar arrastrando sus asas `Grid3X3`. El boton `+` de una pregunta inserta la nueva pregunta inmediatamente debajo de ella. Al agregar una pregunta o respuesta, la pantalla se desplaza suavemente para mostrar el nuevo elemento. Durante el arrastre de preguntas se ocultan las respuestas, se agrega espacio inferior y la pagina se desplaza automaticamente al acercarse a sus bordes. `Ctrl+Z` deshace cambios del constructor, excepto la edicion de texto dentro de los campos, donde conserva el deshacer normal del navegador. Cuando existen tres o mas respuestas, todas muestran la opcion para eliminar, manteniendo siempre un minimo de dos.
-
-### `src/lib/api/`
-
-- `encuestas.ts`: cliente HTTP del frontend.
-- Usa `BACKEND_URL` para llamar a los endpoints del backend.
-- Define las operaciones `GET`, `POST`, `PUT` y `DELETE` para encuestas.
-
-### `src/lib/`
-
-- `utils.ts`: utilidad `cn` para combinar clases CSS.
-- `actions.ts` y `prisma.ts`: fachadas de compatibilidad. El frontend actual usa el cliente HTTP y no Prisma directamente.
-
-## 4. Backend: `backend/`
-
-### `backend/src/server.js`
-
-Es el servidor HTTP de la API. Expone:
-
-```text
-GET    /health
-GET    /encuestas
-GET    /encuestas/:id
-POST   /encuestas
-PUT    /encuestas/:id
-DELETE /encuestas/:id
-```
-
-El endpoint `/health` se usa para que Docker confirme que el backend esta funcionando.
-
-### `backend/src/encuestas/schema.js`
-
-Valida los datos recibidos por la API con Zod. Acepta cuatro tipos de pregunta:
-
-- `ESCALA`
-- `SELECCION`
-- `SELECCION_MULTIPLE`
-- `TEXTO`
-
-Las preguntas `SELECCION` y `SELECCION_MULTIPLE` requieren respuestas. La selección única se representa con círculos y la múltiple con casillas cuadradas.
-
-### `backend/src/encuestas/repository.js`
-
-Es la capa que consulta y modifica la base de datos usando Prisma. Contiene las operaciones para:
-
-- Obtener todas las encuestas.
-- Obtener una encuesta por id.
-- Crear una encuesta con sus preguntas y respuestas.
-- Actualizar una encuesta.
-- Eliminar una encuesta.
-
-### `backend/src/db/prisma.js`
-
-Crea el cliente Prisma y evita crear multiples conexiones innecesarias durante el desarrollo.
-
-### `backend/prisma/`
-
-- `schema.prisma`: define los modelos `Encuesta`, `Pregunta` y `Respuesta`.
-- `migrations/`: contiene la migracion PostgreSQL inicial.
-- El backend ejecuta `prisma migrate deploy` al iniciar el contenedor.
-
-## 5. Modelo de datos
-
-```text
-Encuesta 1 ---- N Pregunta 1 ---- N Respuesta
-```
-
-- Una encuesta tiene muchas preguntas.
-- Una pregunta puede tener muchas respuestas.
-- Las relaciones usan borrado en cascada.
-- Las respuestas se crean solo para preguntas de seleccion.
-- `Pregunta.tipo` usa el enum `ESCALA`, `SELECCION`, `SELECCION_MULTIPLE` o `TEXTO`.
-
-## 6. Docker
-
-### `docker-compose.yml`
-
-Orquesta los servicios:
-
-- `grupo9_bdd`: usa `postgres:16-alpine` y conserva los datos en `grupo9_postgres_data`.
-- `grupo9_backend`: construye `backend/Dockerfile`, ejecuta migraciones y levanta la API.
-- `grupo9_frontend`: construye `docker/app/Dockerfile.dev` y levanta Next.js.
-
-Los `healthcheck` aseguran que:
-
-1. PostgreSQL este listo.
-2. El backend pueda iniciar y responder `/health`.
-3. El frontend se inicie despues del backend.
-
-### `backend/Dockerfile`
-
-Construye la imagen del backend, instala dependencias, copia Prisma y genera Prisma Client.
-
-### `docker/app/Dockerfile.dev`
-
-Construye la imagen de desarrollo del frontend Next.js.
-
-### `.dockerignore`
-
-Evita copiar archivos innecesarios a la imagen frontend, como `node_modules`, `.next`, `backend` y el Prisma historico de la raiz.
-
-## 7. Variables de entorno
-
-### `.env`
-
-Se usa para ejecucion local del proyecto frontend. Actualmente contiene la base SQLite historica y no se usa para la base PostgreSQL de Docker.
-
-### `.env.docker`
-
-Es un archivo de referencia para variables del entorno Docker. No inicia servicios ni reemplaza a `docker-compose.yml`.
-
-```env
-BACKEND_URL="http://localhost:4009"
-```
-
-Dentro de Docker, Compose usa esta direccion interna para el frontend:
-
-```env
-BACKEND_URL=http://grupo9_backend:4000
-```
-
-La diferencia es importante: `localhost` representa el computador del usuario; `grupo9_backend` representa el nombre del contenedor dentro de la red Docker.
-
-## 8. Comandos frecuentes
-
-Iniciar o reconstruir los servicios:
-
+### Levantar en entorno local:
 ```powershell
-docker compose up --build -d
+docker compose -f docker-compose.local.yml up -d --build
 ```
 
-Ver estado de los contenedores:
-
+### Ejecutar migraciones del modelo completo:
 ```powershell
-docker ps
+npx prisma migrate dev
 ```
 
-Ver logs:
-
+### Sembrar datos iniciales (usuarios y encuesta demo):
 ```powershell
-docker compose logs -f
+npm run seed
 ```
 
-Ver logs de un servicio:
-
+### Ver el estado de los servicios:
 ```powershell
-docker compose logs -f grupo9_backend
+docker compose -f docker-compose.local.yml ps
 ```
 
-Detener los servicios sin eliminar el volumen de datos:
-
+### Ver registros (logs) del sistema:
 ```powershell
-docker compose down
+docker compose -f docker-compose.local.yml logs -f
 ```
 
-Abrir la aplicacion:
-
-```text
-http://localhost:3009
+### Detener los servicios conservando los datos:
+```powershell
+docker compose -f docker-compose.local.yml down
 ```
 
-Verificar el backend:
-
-```text
-http://localhost:4009/health
+### Detener y reiniciar desde cero (borrando datos):
+```powershell
+docker compose -f docker-compose.local.yml down -v
 ```
-
-## 9. Flujo para crear una encuesta
-
-1. El usuario completa `SurveyBuilderForm`.
-2. El frontend valida datos basicos y crea un `FormData`.
-3. La Server Action transforma el formulario a JSON.
-4. `src/lib/api/encuestas.ts` envia un `POST /encuestas`.
-5. El backend valida nuevamente con Zod.
-6. El repository usa Prisma para guardar encuesta, preguntas y respuestas.
-7. PostgreSQL persiste la informacion.
-8. El backend devuelve la encuesta creada.
-9. Next.js invalida la lista y redirige al detalle.
-
-La validacion se realiza en frontend y backend; la del backend es la que protege realmente los datos.
-
-## 10. Recomendaciones
-
-- No publicar credenciales reales en Git.
-- Cambiar `POSTGRES_PASSWORD` antes de un despliegue real.
-- No eliminar el volumen `grupo9_postgres_data` si se quieren conservar datos.
-- Usar `docker compose down` para detener servicios sin borrar el volumen.
-- Probar `/health` antes de diagnosticar errores del frontend.
-- Mantener Prisma y las migraciones dentro de `backend/`.
